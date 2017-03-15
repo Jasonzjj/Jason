@@ -42,11 +42,12 @@ void SetNonBlock(int fd, const bool flag)
 void Write(int fd, Client& client)
 {
 
-	if (fd == -1) //socketfd
+	if (1) //socketfd
 	{
-		strcpy(client.socket.buf, buf);
+		Socket socket2 = Socket();
+		strcpy(socket2.buf, buf);
 		memset(buf, 0, sizeof(buf));
-		memcpy(buf, &client.socket, sizeof(client.socket));
+		memcpy(buf, &socket2, sizeof(socket2));
 		SetNonBlock(client.socket.sock_fd, 1);
 		int cur = 0;
 		while (1)
@@ -74,8 +75,10 @@ void Write(int fd, Client& client)
 }
 int Read(int fd, Client& client)
 {
-	if (fd == -1) //socketfd
+//	Socket socket2 = Socket();
+	if (fd != EPOLLIN) //socketfd
 	{
+		puts("1");
 		memset(buf, 0, sizeof(buf));
 
 		SetNonBlock(client.socket.sock_fd, 1);
@@ -96,10 +99,10 @@ int Read(int fd, Client& client)
 			cur += len;
 		}
 		if (strcpy(buf, "exit") == 0) return 1;
-		Client tmp;
+		Socket tmp = Socket();
 		memcpy(&tmp, buf, sizeof(buf));
-		printf("port: %d says: %s\n", ntohs(tmp.socket.address.sin_port), tmp.socket.buf);
-		memcpy(&client.socket, &tmp, sizeof(tmp));
+		printf("%s\n", tmp.buf);
+		
 		SetNonBlock(client.socket.sock_fd, 0);
 		client.epoll.Modify(client.socket.sock_fd, EPOLLOUT | EPOLLET);
 	}
@@ -134,27 +137,28 @@ int Read(int fd, Client& client)
 int main(int argc, char **argv)
 {
 
-	if (argc != 2) 
+	if (argc != 3) 
 	{
 		puts("please input the ip address and the port");
 		exit(-1);
 	}
 	Client client = Client();
+	client.socket.Create();
 	if (!client.socket.Connect(argv[1], StringToDig(argv[2]))) myexit("connect");
 
 	client.epoll.Add(STDIN_FILENO, EPOLLIN | EPOLLET);
 	client.epoll.Add(client.socket.sock_fd, EPOLLIN | EPOLLET);
 	
-		puts("please select the number to continue;");
-		puts("1----Create a new chatting room and join in");
-		puts("2----Join in a exist chatting room");
-		puts("3----exit");
+	//	puts("please select the number to continue;");
+	//	puts("1----Create a new chatting room and join in");
+	//	puts("2----Join in a exist chatting room");
+	//	puts("3----exit");
 		
-		read(STDIN_FILENO, buf, sizeof(buf));
-		if (!strcmp(buf, "1")) client.socket.cmd = 1;
-		else if (!strcmp(buf, "2")) client.socket.cmd = 2;
-		else if (!strcmp(buf, "3")) exit(0);
-		else puts("input error");
+	//	read(STDIN_FILENO, buf, sizeof(buf));
+	//	if (!strcmp(buf, "1")) client.socket.cmd = 1;
+	//	else if (!strcmp(buf, "2")) client.socket.cmd = 2;
+	//	else if (!strcmp(buf, "3")) exit(0);
+	//	else puts("input error");
 		while (1)
 		{
 			
@@ -162,15 +166,16 @@ int main(int argc, char **argv)
 			int out = 0;
 			for (int i = 0; i < ret; ++i)
 			{
+				int fd = client.epoll.GetFd(i);
 				if (client.epoll.GetEvents(i) & EPOLLIN)
 				{
-					if (Read(client.epoll.GetFd(i), client)) out = 1;
+					if (Read(fd, client)) out = 1;
 				}
-				else if (client.epoll.GetEvents(i) & EPOLLOUT) Write(client.epoll.GetFd(i), client);
+				else if (client.epoll.GetEvents(i) & EPOLLOUT) Write(fd, client);
 			}
 			if (out) break;
 
 		}
-	}
+	
 
 }
